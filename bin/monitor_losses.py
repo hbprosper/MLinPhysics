@@ -6,6 +6,7 @@
 #------------------------------------------------------------------------------
 import os, sys
 import lossmonitor as lm
+import time
 #------------------------------------------------------------------------------
 def main():
     # get name of loss file
@@ -31,6 +32,8 @@ def main():
     monitor = lm.Monitor(loss_file, timeleft_file)
     
     monitor()
+
+    print('\nbye from monitor_losses.py!\n')
 #------------------------------------------------------------------------------
 try:
     main()

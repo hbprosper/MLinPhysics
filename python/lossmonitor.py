@@ -109,7 +109,7 @@ class TimeLeft:
     def __str__(self):
         return self.a_str
 
-#------------------------------------------------------------------------------
+#--------------------------------------------------------------------
 class Monitor:
     '''    
     monitor = Monitor()
@@ -166,4 +166,67 @@ class Monitor:
                                  repeat=False, 
                                  cache_frame_data=False)
         plt.show()
+
+#--------------------------------------------------------------------
+class LossWriter:
+    '''
+    Write training and validation losses to a csv file. The losses
+    can be monitored while training by runnin the command
+
+        python monitor_losses.py losses.csv&
+
+    where losses.csv is the name of the loss file
+    '''
+
+    def __init__(self, model, niterations, 
+                 lossfile, timeleftfile, paramsfile, 
+                 step):
+
+        # cache inputs
+        self.model = model
+        self.niterations = niterations
+        self.lossfile = lossfile
+        self.timeleftfile = timeleftfile
+        self.paramsfile = paramsfile
+        self.step = step
         
+        # start saving model parameters after the following number of iterations.
+        self.start_saving = niterations // 100
+        self.min_avloss   = float('inf')  # initialize minimum average loss
+    
+        # initialize loss file
+        # create loss file if it does not exist
+        if not os.path.exists(lossfile):
+            open(lossfile, 'w').write('iteration,t_loss,v_loss\n')  
+    
+        # get last iteration number from loss file
+        df = pd.read_csv(lossfile)
+        if len(df) < 1:
+            self.itno = 0
+        else:
+            self.itno = df.iteration.iloc[-1] # get last iteration number
+
+        self.timeleft = TimeLeft(niterations)
+        
+    def __call__(self, ii, t_loss, v_loss):
+
+        # update loss file
+        
+        open(self.lossfile, 'a').write(f'{self.itno:12d},{t_loss:12.8},{v_loss:12.8}\n')
+
+        # save model parameters to csv file
+        
+        if v_loss < self.min_avloss:
+            self.min_avloss = v_loss
+            if ii > self.start_saving:
+                self.model.save(self.paramsfile)
+
+        # update time left file
+        
+        line = f'|{self.itno:12d}|{t_loss:12.8f}|{v_loss:12.8f}|'
+        self.timeleft(ii, line)
+        open(self.timeleftfile, 'w').write(f'{str(self.timeleft):s}\n')
+
+        # update iteration number
+        
+        self.itno += self.step
