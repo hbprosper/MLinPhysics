@@ -1,5 +1,5 @@
 # Machine Learning in Physics
-## Code Repository for PHY6938 Special Topics Course
+## Code Repository for PHY6937/PHY4936 Special Topics Course
 
 ## Introduction
 This repository contains machine learning tutorials associated with the Special Topics Course Florida State University, Department of Physics. The course is designed for graduate students and senior undergrads who have little to no experience with machine learning.
