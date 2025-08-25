@@ -13,9 +13,9 @@ from matplotlib.animation import FuncAnimation
 DELAY = 10 # seconds - interval between plot updates
 LOG_SWITCH = 3
 #------------------------------------------------------------------------------
-# The loss file should be a simple text file with two columns of numbers:
+# The loss file should be a simple text file with olumns of numbers:
 #
-#   train-losses,validation-losses
+#   iterations,train-losses,validation-losses,...
 #     
 def get_losses(loss_file):
     try:
@@ -178,20 +178,26 @@ class LossWriter:
     where losses.csv is the name of the loss file
     '''
 
-    def __init__(self, model, niterations, 
-                 lossfile, timeleftfile, paramsfile, 
-                 step):
-
+    def __init__(self, 
+                 niterations, 
+                 lossfile, timeleftfile, 
+                 step, 
+                 model=None, 
+                 paramsfile=None):
+      
         # cache inputs
-        self.model = model
         self.niterations = niterations
         self.lossfile = lossfile
         self.timeleftfile = timeleftfile
-        self.paramsfile = paramsfile
         self.step = step
+        self.model = model
+        self.paramsfile = paramsfile
         
-        # start saving model parameters after the following number of iterations.
+        # start saving model parameters after the 
+        # following number of iterations.
+        
         self.start_saving = niterations // 100
+        
         self.min_avloss   = float('inf')  # initialize minimum average loss
     
         # initialize loss file
@@ -212,18 +218,23 @@ class LossWriter:
 
         # update loss file
         
-        open(self.lossfile, 'a').write(f'{self.itno:12d},{t_loss:12.8},{v_loss:12.8}\n')
+        open(self.lossfile, 
+             'a').write(f'{self.itno:12d},{t_loss:10.3e},{v_loss:10.3e}\n')
 
-        # save model parameters to csv file
-        
-        if v_loss < self.min_avloss:
-            self.min_avloss = v_loss
-            if ii > self.start_saving:
-                self.model.save(self.paramsfile)
+        # if specified save model parameters to csv file
+
+        if type(self.model) != type(None):
+            if v_loss < self.min_avloss:
+                self.min_avloss = v_loss
+                if ii > self.start_saving:
+                    try:
+                        self.model.save(self.paramsfile)
+                    except:
+                        pass
 
         # update time left file
         
-        line = f'|{self.itno:12d}|{t_loss:12.8f}|{v_loss:12.8f}|'
+        line = f'|{self.itno:12d}|{t_loss:10.3e}|{v_loss:10.3e}|'
         self.timeleft(ii, line)
         open(self.timeleftfile, 'w').write(f'{str(self.timeleft):s}\n')
 
