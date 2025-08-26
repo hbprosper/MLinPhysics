@@ -181,7 +181,9 @@ class LossWriter:
     def __init__(self, 
                  niterations, 
                  lossfile, timeleftfile, 
-                 step, 
+                 step,
+                 frac=0.01,
+                 delete=True,
                  model=None, 
                  paramsfile=None):
       
@@ -190,6 +192,8 @@ class LossWriter:
         self.lossfile = lossfile
         self.timeleftfile = timeleftfile
         self.step = step
+        self.frac = frac
+        self.delete = delete
         self.model = model
         self.paramsfile = paramsfile
         
@@ -199,11 +203,14 @@ class LossWriter:
         self.start_saving = niterations // 100
         
         self.min_avloss   = float('inf')  # initialize minimum average loss
-    
+
+        if delete:
+            os.system(f'rm -f {lossfile}')
+            
         # initialize loss file
         # create loss file if it does not exist
         if not os.path.exists(lossfile):
-            open(lossfile, 'w').write('iteration,t_loss,v_loss\n')  
+            open(lossfile, 'w').write('iteration,t_loss,v_loss,v_best_loss,lr\n')  
     
         # get last iteration number from loss file
         df = pd.read_csv(lossfile)
@@ -214,18 +221,23 @@ class LossWriter:
 
         self.timeleft = TimeLeft(niterations)
         
-    def __call__(self, ii, t_loss, v_loss):
+    def __call__(self, ii, t_loss, v_loss, lr=0):
 
-        # update loss file
+        loss_decreased = v_loss < (1 - self.frac) * self.min_avloss
+        if loss_decreased:
+            self.min_avloss = v_loss
+        v_best_loss = self.min_avloss
         
+        # update loss file
+
         open(self.lossfile, 
-             'a').write(f'{self.itno:12d},{t_loss:10.3e},{v_loss:10.3e}\n')
+             'a').write(f'{self.itno:12d},'
+                        f'{t_loss:10.3e},{v_loss:10.3e},{v_best_loss:10.3e}{lr:10.3e}\n')
 
-        # if specified save model parameters to csv file
-
+        # if specified save model parameters
+        
         if type(self.model) != type(None):
-            if v_loss < self.min_avloss:
-                self.min_avloss = v_loss
+            if loss_decreased:
                 if ii > self.start_saving:
                     try:
                         self.model.save(self.paramsfile)

@@ -63,11 +63,10 @@ class UniformSample(np.ndarray):
 # ---------------------------------------------------------------------------
 class Dataset(td.Dataset):
     
-    PINNSPLIT=(0, True, False)
+    PINNSPLIT=(1, True, False)
     
     def __init__(self, data, start, end,
-                 # Or a 3-tuple: (column, requires_grad, requires_grad)
-                 split_data=None, 
+                 split_data=None, # cols, or (cols, requires_grad[, requires_grad])
                  random_sample_size=None,
                  device=torch.device("cpu"),
                  verbose=1):
@@ -101,27 +100,32 @@ class Dataset(td.Dataset):
             self.split = True
             
             try:
-                col, req_grad1, req_grad2 = split_data
+                cols, req_grad1, req_grad2 = split_data
             except:
-                raise ValueError('split_data should be a 3-tuple!')
+                try:
+                    cols, req_grad1 = split_data
+                    req_grad2 = True
+                except:
+                    cols = split_data
+                    req_grad1 = True
+                    req_grad2 = True
 
             # get data shape
             if tdata.ndim < 2:
                 tdata = tdata.view(-1, 1)
-                
-            nrows, ncols = tdata.shape
             
-            x = tdata[:, :col]
+            x = tdata[:, :cols]
+            y = tdata[:, cols:]
+
             if req_grad1:
-                self.x = x.reshape(-1, col+1).requires_grad_().to(device)
+                self.x = x.requires_grad_().to(device)
             else:
                 self.x = x.to(device)
-                
-            z = tdata[:, col+1:]
+            
             if req_grad2:
-                self.z = z.reshape(-1, ncols-col-1).requires_grad_().to(device)
+                self.y = y.requires_grad_().to(device)
             else:
-                self.z = z.to(device)
+                self.y = y.to(device)
         else:
             self.split = False
             # do not split data
@@ -131,14 +135,15 @@ class Dataset(td.Dataset):
             print('Dataset')
             print(f"  shape of x: {self.x.shape}")
             if self.split:
-                print(f"  shape of z: {self.z.shape}")
+                print(f"  shape of y: {self.y.shape}")
+            print()
         
     def __len__(self):
         return len(self.x)
 
     def __getitem__(self, idx):
         if self.split:
-            return self.x[idx], self.z[idx]
+            return self.x[idx], self.y[idx]
         else:
             return self.x[idx]
 # ---------------------------------------------------------------------------
@@ -193,6 +198,9 @@ class DataLoader:
         # If shuffle, then shuffle the dataset every shuffle_step iterations
         self.shuffle_step = int(len(dataset) / self.size)
 
+        if self.verbose:
+            print('DataLoader')      
+        
         if self.niterations != None:
             # The user has specified the maximum number of iterations 
             assert(type(self.niterations)==type(0))
@@ -204,29 +212,25 @@ class DataLoader:
             self.shuffle = True
 
             if self.verbose:
-                print('DataLoader')
                 print('  Maximum number of iterations has been specified')
-                print(f'  maxiter:      {self.maxiter:10d}')
-                print(f'  batch_size:   {self.size:10d}')
-                print(f'  shuffle_step: {self.shuffle_step:10d}')
                 
         elif len(dataset) > self.size:
             self.maxiter = self.shuffle_step
             
-            if self.verbose:
-                print('DataLoader')
-                print(f'  maxiter:      {self.maxiter:10d}')
-                print(f'  batch_size:   {self.size:10d}')
-                print(f'  shuffle_step: {self.shuffle_step:10d}')
-
         else:
             # Note: this could be = 2 for a 2-tuple of tensors!
             self.size = len(dataset)
             self.shuffle_step = 1
             self.maxiter = self.shuffle_step
 
-        assert(self.maxiter > 0)
+        if self.verbose:
+            print(f'  maxiter:      {self.maxiter:10d}')
+            print(f'  batch_size:   {self.size:10d}')
+            print(f'  shuffle_step: {self.shuffle_step:10d}')
+            print()
 
+        assert(self.maxiter > 0)
+        
         # initialize iteration number
         # IMPORTANT: must start at -1 so that itnum goes from
         # 0 to size - 1
@@ -244,13 +248,7 @@ class DataLoader:
 
         if self.itnum < self.maxiter:
 
-            if self.sampler:
-                # Create a new tensor indexing dataset using the sequence
-                # returned by the PyTorch sampler
-                indices = list(sampler)[0]
-                return self.dataset[indices]
-
-            elif self.shuffle:
+            if self.shuffle:
                 # Create a new tensor indexing dataset via a random
                 # sequence of indices
                 jtnum = self.itnum % self.shuffle_step

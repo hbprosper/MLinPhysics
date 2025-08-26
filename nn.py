@@ -11,7 +11,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.utils.data as td
+from torch.optim.lr_scheduler import MultiStepLR
+
 import scipy.stats as st
+import json
 # ----------------------------------------------------------------------------
 # Simple utilities
 # ----------------------------------------------------------------------------
@@ -27,9 +30,9 @@ def number_of_parameters(model):
 # the batch size given when the loader is instantiated
 def compute_avg_loss(objective, loader):    
     assert(len(loader)==1)
-    for phi, init_conds in loader:
+    for x, y in loader:
         # Detach from computation tree and send to CPU (if on a GPU)
-        avg_loss = float(objective(phi, init_conds).detach().cpu())
+        avg_loss = float(objective(x, y).detach().cpu())
         
     return avg_loss
 
@@ -42,6 +45,35 @@ def elapsed_time(now, start):
     seconds = t - 60 * minutes
     etime_str = "%2.2d:%2.2d:%2.2d" % (hours, minutes, seconds)
     return etime_str, etime, (hours, minutes, seconds)
+
+def get_steplr_scheduler(optimizer, config):
+    # Number of milestones in multistep LR schedule
+    n_steps = config('n_steps')
+    n_milestones = n_steps - 1
+    print(f'number of milestones: {n_milestones:10d}\n')
+
+    # Learning rate milestones
+    n_iters_per_step = config('n_iters_per_step')
+    milestones = [n * n_iters_per_step for n in range(n_steps)]
+
+    # learning rates
+    base_lr = config('base_lr')
+    gamma = config('gamma')
+    lrs = [base_lr * gamma**i for i in range(n_steps)]
+    
+    print("Step | Milestone | LR")
+    print("-----------------------------")
+    for i in range(n_steps):
+        print(f"{i:>4} | {milestones[i]:>9} | {lrs[i]:<10.1e}")
+        if i < 1:
+            print("-----------------------------")
+    print()
+    
+    n_iters = n_steps * n_iters_per_step
+    print(f'number of iterations:     {n_iters:10d}\n')
+    
+    # drop first entry of milestones list because it contains the base LR    
+    return MultiStepLR(optimizer, milestones=milestones[1:], gamma=gamma)
 # ----------------------------------------------------------------------------
 # Classes 
 # ----------------------------------------------------------------------------
